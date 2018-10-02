@@ -1,0 +1,257 @@
+---
+title: "Exploring the BRFSS data"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+```
+
+### Load data
+
+Make sure your data and R Markdown files are in the same directory. When loaded
+your data file will be called `brfss2013`. Delete this note when before you submit 
+your work. 
+
+```{r load-data}
+load("brfss2013.RData")
+```
+
+
+
+* * *
+
+## Part 1: Data
+Learning about BRFSS, its public health  data sets represent a fairly sizable sample size.   All of its data sets are collected through surveys at state, district and local area level.   Its survey methodology also gather subject-specific behavirol data such as follow-up to asthma and etc. 
+
+BRFSS now collects data in all 50 states as well as the District of Columbia and three U.S. territories.  BRFSS completes more than 400,000 adult interviews each year, making it the largest continuously conducted health survey system in the world.  When interviewed with behavirol questions, I think that collected BRFSS sample can be used for generalizability inferences for relevant health topics and regions.  For causality analysis, I personally think it varies from case to case.  
+
+By collecting behavioral health risk data at the state and local level, BRFSS has become a powerful tool for targeting and building health promotion activities.  I therefore conclude that BRFSS sample data is behavioral, and can be used for research on health subject matters.
+
+* * *
+
+## Part 2: Research questions
+
+**Research quesion 1:**
+I would like to explore correlations between a person's obesity and this person's work-out or exercise.  In this question, I would also like to explore whether obesity has direct impact on  person's overall health.
+
+My goal is to find out whether regular exercise can help prevent obesity, and therefore, can help person achieve better health condition.
+
+POI (Population of Interets) is the entire population over 18 years old.  I think that the BRFSS 
+has a representative sample set so inferences from the BRFSS 2013 sample can be drawn for the
+general population of interests I lead to.
+
+Therefore, I plan to use sample records on following variables
+genhlth : general health indicator, "Fair", "Good", "Very Good" and such
+X_rfbmi5: obesity indicator "Yes" or "No"
+exerany2: Exercise In Past 30 Days "Yes" or "No"
+exeroft1: How Many Times Walking, Running, Jogging, Or Swimming
+
+**Research quesion 2:**
+I would like to study causes of high blood pressure.  There are a few variables I would like to investigate their relationship with the high blood pressure indicator.  They are sleep quality and alcohol consumption.
+
+I plan to use the full sample data set.
+
+Variables I plan to use:
+genhlth: general health
+bphigh4: Ever Told Blood Pressure High
+bpmeds: Currently Taking Blood Pressure Medication
+avedrnk2: Avg Alcoholic Drinks Per Day In Past 30
+sleptim1: How Much Time Do You Sleep
+toldhi2: ever told blood cholesterol high
+
+**Research quesion 3:**
+For general population, I am curious to find out whether access to heathcare services
+including employment status can lead to average better health or not.
+
+I plan to use the entire BRFSS2013 sample.  
+
+Variables I plan to use:
+genhlth: general health
+hlthpln1: Have Any Health Care Coverage
+persdoc2: Multiple Health Care Professionals
+medcost: Could Not See Dr. Because Of Cost
+checkup1: Length Of Time Since Last Routine Checkup
+educa: Education Level
+employ1: Employment Status
+income2: Income Level
+
+* * *
+
+## Part 3: Exploratory data analysis
+
+NOTE: Insert code chunks as needed by clicking on the "Insert a new code chunk" 
+button (green button with orange arrow) above. Make sure that your code is visible
+in the project you submit. Delete this note when before you submit your work.
+
+**Research quesion 1:**
+
+```{r}
+library(statsr)
+library(dplyr)
+library(ggplot2)
+
+myvars <- c("genhlth", "X_rfbmi5", "exerany2", "exeroft1")
+q1obesity <- brfss2013[myvars]
+# Explore all categorical values and use factor for numeric 
+healthlevels <- unique(q1obesity$genhlth)
+# View(healthlevels)
+healthlevels.factor <- factor(healthlevels)
+healthlevels.factor
+# [1] Fair      Good      Very good Excellent Poor      <NA>     
+# Levels: Excellent Very good Good Fair Poor
+as.numeric(healthlevels.factor)
+# [1]  4  3  2  1  5 NA
+obesityval <- unique(q1obesity$X_rfbmi5)
+obesityval.factor <- factor(obesityval)
+as.numeric(obesityval.factor)
+
+# First check on number of times exercising
+# hist(q1obesity$exeroft1)
+# Add a Normal Curve 
+x <- q1obesity$exeroft1 
+h<-hist(x, breaks=10, col="red", xlab="Number Times workout", 
+  	main="Density Analysis") 
+
+# Exclude NA entries (dirty data)
+#xfit<-seq(from=0, max(na.exclude(x)),length=40)
+#yfit<-dnorm(xfit,mean=mean(x),sd=sd(x)) 
+#yfit <- yfit*diff(h$mids[1:2])*length(x) 
+#lines(xfit, yfit, col="blue", lwd=2)
+
+# Convert categorical for genhlth and X_rfbmi5
+q1obesity <- q1obesity %>%
+  mutate(bObesity = ifelse(q1obesity$X_rfbmi5 == "Yes", 1, ifelse(q1obesity$X_rfbmi5 == "No", 0, 99)))
+
+ggplot(data = q1obesity, aes(x=genhlth, y = bObesity)) +
+  geom_count()
+
+# Observing total count of obesity values for each general health category "Excellent", 
+# "Very good", "Good", "Fair", and "Poor"
+# There is no clear evidence showing that causality between obesity and general health exist
+# Therefore, I concluded that to further explore relationships between obesity and 
+# a personal general health, I need to include more variables and test my hypothesis.
+
+# Convert categorical for genhlth and X_rfbmi5
+q1obesity <- q1obesity %>%
+  mutate(bRecentExercise = ifelse(q1obesity$exerany2 == "Yes", 1, ifelse(q1obesity$exerany2 == "No", 0, 99)))
+
+ggplot(data = q1obesity, aes(x=X_rfbmi5, y = bRecentExercise)) +
+  geom_count()
+
+# Check for possible relationship between recent exercise (Yes or No) and obesity
+ggplot(data = q1obesity, aes(x=genhlth, y = bRecentExercise)) +
+  geom_count()
+
+# Observing the total count of most recent exercise and person's obesity ("Yes" or "No")
+# there is no clear indication of positive or negative correlation between these two
+# variables; Neither can I find any causality relationship.  I need to include more than just "exercise in recent 30 days".
+
+# Check exercise duration (MM:HH) and obesity or general health 
+ggplot(data = q1obesity, aes(x=X_rfbmi5, y = q1obesity$exeroft1)) +
+  geom_col()
+
+# From the column bar chart, I observed that person who has obesity tend to exercise 
+# 37% more than person who do not have obesity.  
+
+# Finally, check length of exercise time and general health
+ggplot(data = q1obesity, aes(x=genhlth, y = q1obesity$exeroft1)) +
+  geom_col()
+
+# Observing the total count of most recent exercise
+# there is no clear indication of positive or negative correlation between these two
+
+```
+
+
+
+**Research quesion 2:**
+
+```{r}
+# Identify variables used in Q2 analysis and create a dataframe
+myvars2 <- c("genhlth", "bphigh4", "sleptim1", "avedrnk2", "toldhi2")
+q2bp <- brfss2013[myvars2]
+
+# Convert categorical variables to numeric for easy visualization
+q2bp$bHighBP<-ifelse(q2bp$bphigh4 == "Yes",T,F)
+ggplot(data = q2bp, aes(x=genhlth, y = q2bp$bphigh4, color=bHighBP))+ 
+ geom_col()
+
+# Check relationship between sleep quality and high blood pressure
+ggplot(data = q2bp, aes(x= q2bp$bphigh4, y = q2bp$sleptim1))+ 
+ geom_col()
+
+# From the frequency (column) chart, it indicates that from the sample set there is 
+# no obvious correlation between high-blood pressure and sleeping time, which means 
+# they are not positively or negatively correlated
+
+# Check overall relationship among general health indicator and high-blood pressure ,
+# plus sleeping time
+#q2bp$bHighBP<-ifelse(q2bp$bphigh4 == "Yes",T,F)
+ggplot(data = q2bp, aes(x= q2bp$bphigh4, y = q2bp$sleptim1, color=q2bp$genhlth))+ 
+ geom_col()
+
+# From the stacked column chart above, it indicates that general health
+# and sleeping time are positively correlated.  The healthier a person can be, 
+# more time she/he spends on sleep (Very Good and Excellent)
+
+```
+
+
+
+**Research quesion 3:**
+
+```{r}
+# Identify variables
+myvars <- c("genhlth", "hlthpln1", "persdoc2", "medcost", "checkup1", "educa", "employ1",
+            "income2")
+q3healthcare <- brfss2013[myvars]
+q3healthcare$bEmpStatus<-ifelse(q3healthcare$employ1 == "Employed for wages",1,F)
+# q1obesity <- q1obesity %>%
+#  mutate(bObesity = ifelse(q1obesity$X_rfbmi5 == "Yes", 1, ifelse(q1obesity$X_rfbmi5 == "No", 0, 99)))
+
+# Statistically, frequency of each general health condition is as follows
+ggplot(data = q3healthcare, aes(x=q3healthcare$genhlth))+ 
+  stat_count()
+
+# Predominatly most people from the sample set has access to healthcare
+ggplot(data = q3healthcare, aes(x=q3healthcare$hlthpln1))+ 
+  stat_count()
+
+
+# Checking the data retrieved, I found that many variables are categorical so I think that 
+# conversion is needed
+
+ggplot(data = q3healthcare, aes(x= q3healthcare$hlthpln1, y = q3healthcare$employ1))+ 
+ geom_count()
+
+# From the bubble chart above, it is clear to me that there is a positive association
+# between employed status (employed for wages, self-employed, retired) and access to 
+# healthcare.
+# One thing I need to further validate the hypothesis is the "student" group, where
+# the correlation of access to healthcare and "students" (18 and above) is surprisingly lower
+# than I expect.  So the generalbility for the "students" group is in doubt.
+
+ggplot(data = q3healthcare, aes(x= q3healthcare$hlthpln1, y = q3healthcare$employ1, color=q3healthcare$genhlth))+ 
+ geom_count()
+
+# From the bubble chart, there are a few observations that I think can apply to 
+# our population of interests (POI) - general public
+# 1. People unable to work usually has poor health.  There is a positive correlation but 
+# not sufficient information for "causality" relationship
+# 2. Students are generally in Good if not excellent healthier status.  There is a positive
+# correlation
+# 3. Employeed population and their health status are positive correlated.  Causality can not
+# be derived from this observation.
+
+```
+
