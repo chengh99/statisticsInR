@@ -1,0 +1,140 @@
+---
+title: "Statistical inference with the GSS data"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+library(statsr)
+library(plyr)
+```
+
+### Load data
+
+Make sure your data and R Markdown files are in the same directory. When loaded
+your data file will be called `gss`. Delete this note when before you submit 
+your work. 
+
+```{r load-data}
+load("gss.Rdata")
+```
+
+
+* * *
+## Part 1: Data
+```{r}
+nrow(gss)
+ncol(gss)
+count(gss$year)
+```
+
+From GSS Website:
+The GSS contains a standard core of demographic, behavioral, and attitudinal questions, plus topics of special interest. Among the topics covered are civil liberties, crime and violence, intergroup tolerance, morality, national spending priorities, psychological well-being, social mobility, and stress and traumatic events.
+
+The given GSS dataset contains 57,061 sample surveys from 1972 to 2012.  It has 114 columns or variables.  I also checked the frequency per year.  They are less than 10% of US population and are random samples based on GSS methodology.  Therefore, analysis on GSS samples can apply to general US population.  
+
+Since there is no control nor treatment group.  Causality analysis does not apply.
+
+* * *
+
+## Part 2: Research question
+Context
+In recent years, the political landscape has changed drastically.  As the midterm approaches, I find it interesting about historical trends of confidence in the executive branches of the federal government.
+
+Researches
+By using GSS sample data, I would like to explore whether a person's race could relate to the confidence one has in the executive branch of federal government.
+
+* * *
+
+## Part 3: Exploratory data analysis
+3-1 Race and Confidence in Government 
+NOTE: Insert code chunks as needed by clicking on the "Insert a new code chunk" 
+button (green button with orange arrow) above. Make sure that your code is visible
+in the project you submit. Delete this note when before you submit your work.
+I tend to analyze following two variables:
+  (1) race: A categorical variable indicating ethic group i.e. white, black
+  (2) confed: A categorical variable indicating whether the respondent has confidence in the executive branch of the government.
+
+```{r filter-data}
+gss %>%
+  filter(year >= 2008 &
+           !is.na(race) &
+           !is.na(confed)) %>%
+  select(race,confed)  -> gss_races
+
+dim(gss_races)
+```
+  
+A quick summary shows that, if I exclude null values for both variables, my study of past 10 years public confidence in our government will have 3,985 records.  Thus I decide to use sample results from year "2008" and later.
+
+Look at dimenionality of variable "race" in our sample set:
+```{r}
+table(gss_races$race, useNA = "ifany")
+barplot(summary(gss_races$race))
+```
+
+Also look at the survey results and sample groups
+```{r}
+table(gss_races$race,gss_races$confed)
+```
+
+In our sample set visualized below, I have surveys from white people, black people and other races.  They are obviously all less than 10% of the entire US population.  GSS ramdom sampling method also assured me that survey results are independent.  Independence can also be assumed cross sample groups.
+
+```{r}
+g <- ggplot(data = gss_races, aes(x=race))
+g <- g + geom_bar(aes(fill=confed), position = "dodge")
+g + theme(axis.text.x = element_text(angle=45,hjust = 1))
+```
+
+Examine subgroup and percentage:
+```{r}
+(tab <- prop.table(table(gss_races), 1)*100)
+```
+
+My observations include following.  In our GSS sample, 
+
+(1) It is common that people have some confidence in federal government, regardless of their races.
+
+(2) White people have the lowest percentage in category of "great deal of confidence", while black people have the highest percentage.  
+
+(3) "Other" races have the lowest percentageDistrust of federal government, while white group has the highest disapproval rate in our sample set. 
+
+* * *
+
+## Part 4: Inference
+4.1 Hypothesis
+Null hypothesis: people's race is independence of person's confidence in federal government
+Alteranative hypothesis: race and faith in government are depedent
+
+4.2 Check conditions
+Indepedence: GSS sample data is based on random survey methodology. Each record in my study can be considered independent.
+
+Sample: Data candinality indicate that they are drawn from less than 10% of US population
+
+Degree of freedom: "race" has three values while "confed" has three values.  Therefore I picked two categorical variables and each has more than 2 values. I can then apply the chi-squared test to test the null hypothesis.
+
+Expected number: shown below, condition is met.
+```{r}
+chisq.test(gss_races$race,gss_races$confed)$expected
+```
+
+Chi-Square Test of Independence
+```{r}
+chisq.test(gss_races$race,gss_races$confed)
+```
+The chi-squared statistic is 66.836; p-value for 4 degree of freedom is nearly zero, obviously much lower than the significance level of 0.05.  Conversely I rejected my null hypothesis.  
+
+##### I concluded that race and confidence in government are dependent given our sample population analysis. Once again, there is no control group nor treatment group.  Causality analysis does not apply.
+
+NOTE: Insert code chunks as needed by clicking on the "Insert a new code chunk" 
+button (green button with orange arrow) above. Make sure that your code is visible
+in the project you submit. Delete this note when before you submit your work.
