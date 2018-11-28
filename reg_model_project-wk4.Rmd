@@ -1,0 +1,352 @@
+---
+title: "Modeling and prediction for movies"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+library(statsr)
+library(GGally)
+```
+
+### Load data
+
+```{r load-data}
+load("movies.Rdata")
+```
+
+* * *
+
+## Part 1: Data
+
+### Knowing our sources
+Since our data samples come from two movie critics sites.  I decided to learn more about how each movie is rated on both sites respectively.  It will help me understand data elements included in our sample.
+
+####<b>IMdb </b>[1]
+IMDb (Internet Movie Database) is an online database of information related to films, television programs, home videos and video games, and internet streams, including cast, production crew and personnel biographies, plot summaries, trivia, and fan reviews and ratings.  
+
+By looking at one of its film critics, I become familiar with what IMdb can provide to our research.
+
+<I>Source: https://en.wikipedia.org/wiki/IMDb#Film_titles </I>
+
+#### <b>Rotten Tomatoes</b>
+Rotten Tomatoes is an American review-aggregation website for film and television. It provides top critics and user ratings.
+
+<I>Sample: https://www.rottentomatoes.com/m/the_favourite_2018 </I>
+
+
+```{r data-elements-format}
+# head(movies)
+str(movies)
+```
+#### <b>Variables Included In this Dataset</b>
+There are 651 observastions. Each film (observation) has title, film metadata, director and cast awards, ratings and etc. Generalization is supported. Since there is no control group or treatment group in the experiment, causality analysis can not be conducted.
+
+There are many categorical varialbles such as <i>title_type</i> and <i>best_pic_win</i>.  So I need to be prepared for such when fitting multiple regression models.
+
+* * *
+
+## Part 2: Research question
+I want to investigate which variables are significant to movie scores. The linear model then can help us predict whether a movie will receive higher audience_score.
+
+Each movie title has two scores, one from IMdb and one from Rotton Tomato.  I pick the audience score on Rotten Tomatoes as the response variable to begin with. <i><b>audience_score</b></i>.  
+
+To make sure that I do not leave important information from IMdb out, I will begin my exploration with a quick look at correlations between IMdb score and Rotton Tomato scores.
+
+* * *
+
+## Part 3: Exploratory data analysis
+
+The goal is to understand provided movie critics dataset with visualization and statistics
+
+<b>3-1 Check movie scores from two websites </b>
+```{r sanity-imdb-rotton}
+# type your code for Question 2 here, and Knit
+c_imdb_rotton <- lm(movies$imdb_rating ~ movies$critics_score, data = movies)
+summary(c_imdb_rotton)
+```
+```{r visualize-imdb-rotton}
+ggplot(data = movies, aes(x = imdb_rating, y = critics_score)) +
+  geom_jitter() +
+  geom_smooth(method = "lm")
+```
+
+```{r visualize-imdb-rotton_audiencescore}
+ggplot(data = movies, aes(x = imdb_rating, y = audience_score)) +
+  geom_jitter() +
+  geom_smooth(method = "lm")
+```
+
+<b>Conclusion</b>: It is evident that <i>imdb_rating </i> (numberic) and rotton tomato's scores (<i>audience_score</i> and <i>critics_score</i>) are correlated.  I decided to take Rotton Tomato's audience_score as the response variable for this lab 
+
+<b>3-2 Data Pairs: numeric variables </b>
+My next step for the EDA section is to explore paired analysis. To make paired correlation analysis easy to read, I initialy separate categorical variables from numeric variables.  
+```{r pairs-no-categorical}
+#df_extract = select(movies, audience_score, runtime, thtr_rel_year, imdb_rating, imdb_num_votes, critics_score, best_pic_win, best_actor_win, best_actress_win, best_dir_win) 
+
+df_extract = select(movies, audience_score, runtime, thtr_rel_year, imdb_rating, imdb_num_votes, critics_score) 
+df_extract = na.exclude(df_extract)
+ggpairs(df_extract)
+```
+The chart above reveals that some variables in our dataset can be dependent variables.  
+
+<b>3-3 Data Pairs: audience_score and categorical variables </b>
+```{r ggpair-with-categorical}
+df_ext2 = select(movies, audience_score, audience_rating, best_pic_win, best_actor_win, best_actress_win, best_dir_win) 
+df_ext2 = na.exclude(df_ext2)
+#ggpairs(df_ext2)
+ggpairs(df_ext2, lower=list(combo=wrap("facethist", binwidth=12)))
+```
+The chart above indicates that levels of categorical variables in this dataset can be skewed.  
+
+<b>3-4 Overview of Variables </b>
+I first set the scope as below
+<b><i>My first attemp received a poor adjusted R-square.  I have to throw in a few more variables </i></b>
+
+```{r lm-summary}
+df_ext3 = select(movies,  audience_score, audience_rating, title_type, genre, mpaa_rating, best_pic_win, best_actor_win, best_actress_win, best_dir_win, top200_box, runtime, thtr_rel_year, critics_score, critics_rating, imdb_rating,imdb_num_votes) 
+df_ext3 = na.exclude(df_ext3)
+
+m_pass0 <- lm(audience_score~title_type + genre + mpaa_rating + audience_rating + top200_box + runtime + thtr_rel_year + critics_rating + critics_score + imdb_rating + imdb_num_votes, data=movies)
+summary(m_pass0)
+```
+
+```{r anova}
+anova(m_pass0)
+```
+
+The Linear Model and Anova yield to adjusted R^2^ of 88.48%.  The selected predictor variables together can explain 88.48% of variability.  There are 11.52% variability unexplained.  To increase adjust R^2^ while preventing collinearity, I plan to use <b> Backwards Elimination </b>method and refine our multiple regression model.
+
+* * *
+
+## Part 4: Modeling
+
+My goal in this step is to finalize the minimal set of significant predictor variables to better predict <i>audience_score</i>.
+
+<b>4-1 Backwards Elimination</b>
+The approach I plan to take is the step-wise backwards elimination.  I will use <b>p-value</b> as the criteria.  Each step, I will remove one predictor variable with the highest p-value.  Repeating this step until I get a parsimonios model.
+
+```{r p-value-analysis}
+x<-summary(m_pass0)
+y<-data.frame(x$coefficients[,4])
+colnames(y)<-c('p-value')
+y
+```
+
+I followed the backwards elimination, taking out one variable with the highest p-value and then record the adjust R^2^ value.  Such efforts should converge at the parsimonios model when adjust R^2^ does not fluctuate much.
+<pre><b>Removed Var.</b>      <b>Adjusted R2 Before</b>     <b>Adjusted R2 After</b></pre>
+<pre>critics_score       88.48%                  88.50% </pre>
+<pre>mpaa_rating         88.50%                  88.56% </pre>
+<pre>title_type          88.56%                  88.58% </pre>
+<pre>top200_box          88.58%                  88.60% </pre>
+
+I chose to stopped at <i>top200_box</i> since afterwards adjusted R^2^ will diminish.  
+
+<b>4-2 Final Model Validation</b>
+Therefore, after backwards eliminatiion, my model eventually looks like below.  I plan to use linear modeling, anova and collinearity analysis to validate.
+
+```{r iteration-model}
+m_df4 <- lm(formula = audience_score ~ genre + audience_rating +  runtime + thtr_rel_year + critics_rating + imdb_rating + imdb_num_votes, data = movies)
+summary(m_df4)
+```
+
+The adjusted R^2^ peaks at 88.60%.  Also check with ANOVA
+```{r final-anova}
+anova(m_df4)
+```
+
+My final check is collinearity.
+```{r pair-check-final}
+df_ext4 = select(movies, genre, audience_rating, runtime, thtr_rel_year, critics_rating, imdb_rating, imdb_num_votes) 
+df_ext4 = na.exclude(df_ext4)
+# TODO: Uncomment this expensive one before publish 
+# ggpairs(df_ext4, lower=list(combo=wrap("facethist", binwidth=12)))
+```
+
+<b>4-3 MLR Diagnostics</b>
+
+<i> 4-3-1 Numeric variable and residuals </i>
+
+From my final model, I picked the numeric variable <i>imdb_rating</i>
+<i> m_df4 <- lm(audience_score~ genre + best_actress_win + runtime + thtr_rel_year + critics_rating + imdb_rating + imdb_num_votes, data=df_ext3) </i>
+```{r mlr}
+plot(m_df4$residuals~df_ext3$imdb_rating, main='Residuals vs. IMDB rating')
+```
+
+<b>Conclusion</b>
+
+The residuals appears to be completely random, and seem to be randomly scattered around zero.
+
+<i> 4-3-2 Nearly Normal Residuals with Mean Zero </i>
+
+```{r hist-residuals}
+hist(m_df4$residual)
+qqnorm(m_df4$residual)
+qqline(m_df4$residual)
+```
+
+<b> Conclusion </b>
+Since I do not see huge deviation from mean zero, I conclude that this condition is met.
+
+<i> 4-3-3 Constant Variability of Residuals </i>
+In this step, I want to check variability between residuals and predicted value.
+
+```{r const-var}
+plot(m_df4$residual ~ m_df4$fitted)
+plot(abs(m_df4$residual) ~ m_df4$fitted)
+```
+
+<b> Conclusion </b>
+I do not see a fan shape here.  The variability of residuals stays constant as the value of the predicted value change.  So the constant variability condition is met.
+
+<i> 4-3-4 Independent Residuals </i>
+
+This step is to revisit our first principle.
+
+```{r residual-plot}
+plot(m_df4$residuals)
+abline(0,0)
+```
+
+<b> Conclusion </b>
+The order of x-axis and y-axis do not have obvious patterns.  I can conclude that order of sample collection or time series are not considerations of the <i>movies</i> dataset.
+
+* * *
+
+## Part 5: Prediction
+
+My movie score prediction model is summarized below
+```{r final-model-movies-score}
+## audience_score <- 93.77 + g(genre) + ar(audience_rating) - 0.03033runtime - 0.05035thtr_rel_year + cr(critics_ratingFresh) + 9.486imdb_rating + 0.000004343imdb_num_votes 
+G  <-rbind(0,3.383,-2.388,1.446,1.012,-0.5689,-2.002,3.216,-3.086,-0.1484,-0.5152)
+AR <-rbind(0, 19.96)
+CR <-rbind(0,-0.2351,-1.26)
+```
+
+
+#### New Movies
+First movie is "Ralph breaks the Internet" (2018) [2][3]
+```{r ralph_breaks_the_internet}
+## ralph_breaks_the_internet 
+##  audience_score = 72, genre "Science Fiction & Fantasy", audience_rating "Upright",runtime:114
+##  thtr_rel_year: 2018, critics_rating Fresh, 
+##  imdb_rating: 7.9, imdb_num_votes: 2678
+##
+##
+audience_scoreralph <- 93.77 - 0.5152 + 19.96 - 0.03033 * 114 - 0.05035 * 2018 - 0.02351 + 9.486 * 7.9 +
+  0.000004343 * 2678
+audience_scoreralph - 72
+```
+Check out the 95% confidence intervalue for this case.
+```{r m-ralph}
+nralph <- data.frame(audience_score = 72, genre = "Science Fiction & Fantasy", audience_rating = "Upright", runtime = 114, thtr_rel_year = 2018, critics_rating = "Fresh", imdb_rating = 7.9, imdb_num_votes = 2678)
+predict(m_df4, nralph, interval = "prediction", level = 0.95)
+```
+
+<b> Conclusions </b>
+Predicted value is 11 points higher than the actual audience_score on Rotten Tomatoes.  The actual score of 72 falls between the confidence intervals at 95% level.
+
+Second movie is "Widsows" (2018) [4][5]
+```{r widows}
+## audience_score 61, genre "Drama", audience_rating: Upright, runtime: 128
+## 2018, critics: Fresh
+## imdb_rating: 7.5, votes: 9262  
+audience_scorewidows <- 93.77 - 0.5689 + 19.96 - 0.03033 * 128 - 0.05035 * 2018 - 0.02351 + 9.486 * 7.5 +
+  0.000004343 * 9262
+audience_scorewidows
+audience_scorewidows - 61
+```
+I try to analyze the confidence intervals for the predicted value at 95% confidence level.
+```{r ci-analysis-widows}
+nwid <- data.frame(audience_score = 61, genre = "Drama", audience_rating = "Upright", runtime = 128, thtr_rel_year = 2018, critics_rating = "Fresh", imdb_rating = 7.5, imdb_num_votes = 9262)
+predict(m_df4, nwid, interval = "prediction", level = 0.95)
+```
+
+<b> Conclusion </b> 
+My model predicts 17 points higher than the actual audience score on Rotton Tomatoes.  The actual score <i>61</i> falls out of the 95% confidence intervals.
+
+Third movie is "20 Feet from Stardom" (2013) [6][7]
+```{r 20feet}
+## audience_score 82, genre "Documentary", audience_rating: Upright, runtime: 89
+## 2013, Fresh
+## 7.4, 10985
+audience_score20ft <- 93.77 + 1.012 + 19.96 - 0.03033 * 89 - 0.05035 * 2013 - 0.02351 + 9.486 * 7.4 +
+  0.000004343 * 10985
+audience_score20ft
+audience_score20ft - 82
+```
+
+```{r predict-fit}
+n20feet <- data.frame(audience_score = 82, genre = "Documentary", audience_rating = "Upright", runtime = 89, thtr_rel_year = 2013, critics_rating = "Fresh", imdb_rating = 7.4, imdb_num_votes = 10985)
+predict(m_df4, n20feet)
+```
+
+The actual model will predict <i>80.7066</i>.  Let us check out the confidence intervals at 95% level.
+```{r ci-analysis}
+predict(m_df4, n20feet, interval = "prediction", level = 0.95)
+```
+
+<b> Conclusion </b>
+For documentary film (oscar winner) "20 Feet from Stardom", my model gets close to the actual rating.  The predicted score is 80.7066 while the confidence interval at 95% level is 67.13 and 94.29.  The actual score of 82 falls between this range.
+
+
+* * *
+
+## Part 6: Conclusion
+
+In the chosen 3 movies, the model predicts audience scores within the 95% confidence interval (see R "predict" results).
+
+Shortcomings are listed below:
+<ol>
+<li>Predicted score can be more accurate </li>
+<li>Potentially underfitting when predicting future movie titles (i.e. 2018 movies) given the fact that collected movie rating samples are older than 2014 </li>
+<li>Rating algorithms from two sources (IMdb and Rotten Tomatoes) can change over time, which will make this model obsolete</li>
+
+</ol>
+
+* * *
+
+## Part 7: Using R forwards and backwards
+
+```{r forward}
+fullmovie = lm(audience_score~., data=df_ext3)
+fullmovie
+```
+
+A full mode is not optimal. I can try backwards elimination.
+```{r backwards-elim}
+ step(fullmovie, data=df_ext3, direction="backward")
+```
+
+Based on the above regression, final model 
+```{r r-backwards-check}
+rback <- lm(formula = audience_score ~ audience_rating + genre + runtime + 
+    thtr_rel_year + critics_score + imdb_rating + imdb_num_votes, 
+    data = df_ext3)
+summary(rback)
+```
+
+
+## References
+[1] IMdb User Ratings at Wikipedia: https://en.wikipedia.org/wiki/IMDb#Film_titles
+
+[2] IMdb "Ralph Breaks the Internet (2018)"  https://www.imdb.com/title/tt5848272/?ref_=fn_al_tt_1
+
+[3] RottenTomatoes "Ralph Breaks the Internet (2018)"  https://www.rottentomatoes.com/m/ralph_breaks_the_internet
+
+[4] IMdb "Widows" https://www.imdb.com/title/tt4218572/?ref_=nv_sr_1
+
+[5] RottenTomatoes "Widows" https://www.rottentomatoes.com/m/widows_2018
+
+[6] IMdb "20 Feet From Stardom" https://www.imdb.com/title/tt2396566/?ref_=nv_sr_1
+
+[7] RottenTomatoes "20 Feet From Stardom" https://www.rottentomatoes.com/m/20_feet_from_stardom
