@@ -107,7 +107,7 @@ $$
 
 <div class="question">
 Based on the preceding result, what is the probability that Machine 1 is "Bad" 
-given you won a game playing on Machine 1?
+given you won a game playing on Machine 1? (1-0.6 = 0.4)
 
 * 0.3
 * 0.4
@@ -118,7 +118,7 @@ given you won a game playing on Machine 1?
 
 <div class="question">
 Based on the preceding result, what is the probability that Machine 2 is "Good" 
-given you won a game playing on Machine 1?
+given you won a game playing on Machine 1? (0.4, Good or Bad for machine 1 and 2; mutually exclusive)
 
 * 0.3
 * 0.4
@@ -312,7 +312,7 @@ plot_bandit_posterior(data)
 ```
 
 <div class="question">
-From the plot generated in the example above, we can see that the posterior probabilities for Machine 1 and Machine 2 mirror each other. Why will this happen?
+From the plot generated in the example above, we can see that the posterior probabilities for Machine 1 and Machine 2 mirror each other. Why will this happen? (Both of the above)
 
 * $P(M_1~|~\text{data})$ and $P(M_2~|~\text{data})$ are complementary
 * Machine 1 and Machine 2 being "good" are mutually exclusive events
